@@ -16,44 +16,47 @@ module.exports = function(grunt) {
 
   var _ = grunt.util._;
 
-  var extensions = {
-    "dust"        : "dust",
-    "eco"         : "eco",
-    "ejs"         : "ejs",
-    "haml"        : "haml",
-    "haml-coffee" : "haml-coffee",
-    "handlebars"  : "handlebars",
-    "hbt"         : "handlebars",
-    "hb"          : "handlebars",
-    "handlebar"   : "handlebars",
-    "hbs"         : "handlebars",
-    "hogan"       : "hogan",
-    "jade"        : "jade",
-    "jt"          : "jade",
-    "jazz"        : "jazz",
-    "jqtpl"       : "jqtpl",
-    "jst"         : "underscore",
-    "liquor"      : "liquor",
-    "mustache"    : "mustache",
-    "QEJS"        : "QEJS",
-    "swig"        : "swig",
-    "underscore"  : "underscore",
-    "us"          : "underscore",
-    "walrus"      : "walrus",
-    "whiskers"    : "whiskers"
+  var extensions = { 
+    hbt: 'handlebars',
+    hb: 'handlebars',
+    handlebar: 'handlebars',
+    hbs: 'handlebars',
+    jt: 'jade',
+    us: 'underscore',
+    lqd: 'liquid',
+    dst: 'dust',
+    swg: 'swig',
+    lqr: 'liquor',
+    jqt: 'jqtpl',
+    wskr: 'whiskers',
+    hmlc: 'haml-coffee',
+    hgn: 'hogan',
+    tpld: 'templayed',
+    ldsh: 'lodash',
+    qejs: 'qejs',
+    walr: 'walrus',
+    mst: 'mustache',
+    jst: 'just',
+    ract: 'ractive'
   };
+
+  var nonEngineMethods = ['clearCache'];
+
+  var engines = _.chain(consolidate).methods();
+  engines = engines.without.apply(engines, nonEngineMethods).value();
+  _.extend(extensions,_.object(engines, engines));
 
   function getEngineOf(fileName) {
     var extension = _(fileName.match(/[^.]*$/)).last();
     return  _( _(extensions).keys() ).include(extension) ? extensions[extension] : false;
   }
 
-  grunt.registerMultiTask('template', 'generates an html file from a specified template', function(){
+  grunt.registerMultiTask('templater', 'Generates html files from vast range of templates identified by file extensions', function(){
     var config = this;
     var data = this.data;
     var done = this.async();
 
-    var hasFiles = !!this.files.length;
+    var hasFiles = !!this.data.files.length;
     var requiredAttributes = [ 'variables' ].concat(hasFiles ? [] : [ 'src', 'dest' ]);
 
     requiredAttributes.forEach(function(attribute) {
@@ -62,13 +65,17 @@ module.exports = function(grunt) {
 
     var vars = data.variables;
 
-    // If the variables are dynamic, grab them
-    if (typeof vars === 'function') {
-      vars = vars();
+    if (typeof vars === 'function' && vars.length == 0) {
+        vars = vars();
     }
 
     var compile = function compile(src, dest, vars) {
       var engine = data.engine || getEngineOf(src);
+      // If the variables are dynamic, grab them
+      if (typeof vars === 'function') {
+        vars = vars(src, dest);
+      }
+
       return new Promise(function(resolve, reject) {
         if (!engine) {
           grunt.log.writeln("No compatable engine available");
@@ -81,7 +88,7 @@ module.exports = function(grunt) {
             reject();
           }
           grunt.file.write(dest, html);
-          grunt.log.writeln("Generated html to '"+ dest +"'");
+          grunt.log.ok("Compiled '" + src + "' to '"+ dest +"'");
           resolve();
         });
 
