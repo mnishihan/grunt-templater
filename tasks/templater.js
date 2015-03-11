@@ -9,7 +9,7 @@ module.exports = function(grunt) {
 
   var Promise = require('es6-promise').Promise;
   var consolidate = require('consolidate'),
-      fs = require('fs');
+      fs = require('fs'), path = require('path');
 
   // TODO: ditch this when grunt v0.4 is released
   grunt.util = grunt.util || grunt.utils;
@@ -54,35 +54,58 @@ module.exports = function(grunt) {
   grunt.registerMultiTask('templater', 'Generates html files from vast range of templates identified by file extensions', function(){
     var config = this;
     var data = this.data;
+    var options = this.options();
+
     var done = this.async();
 
     var hasFiles = !!this.data.files.length;
-    var requiredAttributes = [ 'variables' ].concat(hasFiles ? [] : [ 'src', 'dest' ]);
+    var requiredAttributes = (hasFiles ? [] : [ 'src', 'dest' ]);
 
     requiredAttributes.forEach(function(attribute) {
       config.requiresConfig([ config.name, config.target, attribute].join('.'));
     });
 
-    var vars = data.variables;
+    var vars = data.variables || options.variables || {};
 
     if (typeof vars === 'function' && vars.length == 0) {
         vars = vars();
     }
 
-    var compile = function compile(src, dest, vars) {
-      var engine = data.engine || getEngineOf(src);
+    var getTemplateVars = function(src){
+      var templateVars = vars;
       // If the variables are dynamic, grab them
       if (typeof vars === 'function') {
-        vars = vars(src, dest);
+        templateVars = vars(src);
       }
 
+      if(options.partialPath){
+        templateVars["renderPartial"] = getRenderFunction;  
+      }
+      return templateVars;
+    }
+
+    var getRenderFunction = function(src){
+      var engine = data.engine || getEngineOf(src);
+      if(options.partialPath){
+        src = path.join(options.partialPath, src);
+      }
+      return consolidate[engine](src, getTemplateVars(src), function(err, html) {
+        if (err) {
+          grunt.log.error(err);
+        }
+      });
+    }
+
+    var compile = function compile(src, dest, vars) {
+      var engine = data.engine || getEngineOf(src);
+    
       return new Promise(function(resolve, reject) {
         if (!engine) {
           grunt.log.writeln("No compatable engine available");
           reject();
         }
 
-        consolidate[engine](src, vars, function(err, html) {
+        consolidate[engine](src, getTemplateVars(src), function(err, html) {
           if (err) {
             grunt.log.error(err);
             reject();
